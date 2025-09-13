@@ -1,2 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fiche élève – Réseaux (version ultra simple)</title>
+  <style>
+    :root{ --ink:#0b1220; --muted:#5b647a; --line:#e5e7eb; --bg:#f8fafc; --card:#ffffff; --danger:#ef4444; --ok:#15803d; }
+    *{ box-sizing:border-box }
+    html,body{ height:100% }
+    body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial; color:var(--ink); background:var(--bg); }
+    .wrap{ max-width: 900px; margin: 24px auto 80px; padding: 0 16px }
+    h1{ margin:0 0 4px; font-size: clamp(1.3rem, 1.1rem + 1.2vw, 1.8rem) }
+    p.lead{ margin:0 0 12px; color:var(--muted) }
+
+    .card{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin:12px 0 }
+    .row2{ display:grid; grid-template-columns: 1fr 1fr; gap:12px }
+    @media (max-width:720px){ .row2{ grid-template-columns:1fr } }
+
+    label{ display:block; font-weight:600; margin:4px 0 6px }
+    input[type="text"], textarea{ width:100%; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff }
+    textarea{ min-height:110px; resize:vertical }
+    .error{ border-color: var(--danger) !important; outline: 2px solid rgba(239,68,68,.12) }
+
+    .q{ display:grid; gap:8px }
+    .q h3{ margin:.2rem 0; font-size:1rem }
+    .points{ color:var(--muted); font-weight:600; font-size:.95rem }
+
+    .actions{ display:flex; gap:12px; align-items:center; justify-content:flex-end; margin-top:18px; flex-wrap:wrap }
+    button{ appearance:none; border:1px solid var(--line); background:#fff; border-radius:10px; padding:10px 14px; cursor:pointer; font-weight:700 }
+    .status{ color:var(--muted); font-size:.95rem }
+    .ok{ color:var(--ok) }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Fiche élève – Réseaux informatiques</h1>
+      <p class="lead">Version ultra simple, avec export PDF texte copiable des réponses.</p>
+    </header>
+
+    <section class="card row2">
+      <div>
+        <label for="nom">Nom</label>
+        <input id="nom" name="nom" type="text" placeholder="Prénom NOM" autocomplete="name" />
+      </div>
+      <div>
+        <label for="classe">Classe</label>
+        <input id="classe" name="classe" type="text" placeholder="ex. 5e B" />
+      </div>
+    </section>
+
+    <section class="card q" id="q1">
+      <h3>🖊️ 1) Liste les nouveaux mots que tu viens d'apprendre dans la vidéo. <span class="points">(2 points)</span></h3>
+      <textarea id="r1" placeholder="Écris la liste de tes mots nouveaux…"></textarea>
+    </section>
+
+    <section class="card q" id="q2">
+      <h3>🖊️ 2) C'est quoi un réseau ? Explique avec tes mots (1–2 phrases). <span class="points">(3 points)</span></h3>
+      <textarea id="r2" placeholder="Ta définition personnelle du réseau…"></textarea>
+    </section>
+
+    <section class="card q" id="q3">
+      <h3>🖊️ 3) Qui est le « chef d'orchestre » du réseau ? <span class="points">(2 points)</span></h3>
+      <textarea id="r3" placeholder="Nomme l'appareil et explique son rôle en 1 phrase…"></textarea>
+    </section>
+
+    <section class="card q" id="q4">
+      <h3>🖊️ 4) Pourquoi a-t-on besoin d'une adresse IP ? <span class="points">(3 points)</span></h3>
+      <textarea id="r4" placeholder="Explique l'utilité avec un petit exemple…"></textarea>
+    </section>
+
+    <section class="card q" id="q5">
+      <h3>🖊️ 5) Quel appareil permet de relier plusieurs ordinateurs ensemble ? <span class="points">(2 points)</span></h3>
+      <textarea id="r5" placeholder="Nom de l'appareil et image mentale (place du village)…"></textarea>
+    </section>
+
+    <section class="card q" id="q6">
+      <h3>🖊️ 6) Comment circulent les messages sur Internet ? <span class="points">(3 points)</span></h3>
+      <textarea id="r6" placeholder="Décris le trajet simplement…"></textarea>
+    </section>
+
+    <section class="card q" id="q7">
+      <h3>🖊️ 7) Différence entre une adresse IP publique et une adresse IP privée ? <span class="points">(5 points)</span></h3>
+      <textarea id="r7" placeholder="Explique la différence + métaphore (immeuble/appartements)…"></textarea>
+    </section>
+
+    <div class="actions">
+      <button id="verifier" type="button">Vérifier que tout est rempli</button>
+      <button id="imprimer" type="button">📄 Exporter mes réponses en PDF</button>
+      <span id="resultat" class="status" aria-live="polite"></span>
+    </div>
+  </div>
+
+  <!-- jsPDF depuis CDN (léger, pas de dépendances externes supplémentaires) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
+
+  <script>
+    // Champs à contrôler
+    const fields = ["nom","classe","r1","r2","r3","r4","r5","r6","r7"];
+    const res = document.getElementById('resultat');
+
+    function verifier(){
+      const manquants = [];
+      for (const id of fields){
+        const el = document.getElementById(id);
+        const val = (el.value||'').trim();
+        if (!val){ manquants.push(labelFor(id)); el.classList.add('error'); }
+        else { el.classList.remove('error'); }
+      }
+      if (manquants.length === 0){ res.textContent = 'Tout est rempli ✔'; res.classList.add('ok'); }
+      else { res.textContent = 'Champs à compléter : ' + manquants.join(', '); res.classList.remove('ok'); }
+    }
+
+    function labelFor(id){
+      const el = document.querySelector('label[for="'+id+'"]');
+      return el ? (el.textContent || '').trim() : id;
+    }
+
+    document.getElementById('verifier').addEventListener('click', verifier);
+
+    // === Export PDF texte avec retour à la ligne + saut de page auto ===
+    document.getElementById('imprimer').addEventListener('click', () => {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+
+      // Dimensions dynamiques pour être robuste si format/orientation change
+      const pageWidth  = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      const margin = 20;                  // marges haut/bas/gauche/droite
+      const maxWidth = pageWidth - margin * 2; // largeur utile
+      const lineGap = 6;                  // "hauteur" d'une ligne approximative
+      let y = margin;
+
+      // En-tête
+      const nom = (document.getElementById("nom").value || "").trim();
+      const classe = (document.getElementById("classe").value || "").trim();
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(16);
+      y = writeBlock(doc, `Réponses – Fiche Réseaux`, margin, y, maxWidth, lineGap, { bold:false });
+      doc.setFontSize(12);
+      y = writeBlock(doc, `Nom : ${nom || '—'}`, margin, y, maxWidth, lineGap);
+      y = writeBlock(doc, `Classe : ${classe || '—'}`, margin, y, maxWidth, lineGap);
+      y += 2;
+
+      // Corps : pour chaque textarea, on imprime l'énoncé court (h3) + la réponse
+      // NB: si tu veux "uniquement les réponses", commente la ligne qui écrit qLabel.
+      const textAreas = ["r1","r2","r3","r4","r5","r6","r7"];
+
+      for (const id of textAreas){
+        const area = document.getElementById(id);
+        const section = area.closest('.q');
+        const h3 = section ? section.querySelector('h3') : null;
+        const qLabel = h3 ? (h3.innerText || '').trim() : id.toUpperCase();
+
+        // Question (étiquette)
+        doc.setFontSize(12);
+        y = writeBlock(doc, qLabel, margin, y, maxWidth, lineGap, { bold:true });
+
+        // Réponse (texte copiable)
+        const val = (area.value || '').trim() || '(vide)';
+        y = writeBlock(doc, val, margin + 5, y, maxWidth - 5, lineGap);
+        y += 2; // petit espace entre questions
+      }
+
+      doc.save(`reponses_${(nom || 'eleve').replace(/\s+/g,'_')}.pdf`);
+
+      // ---- Helpers ----
+      function writeBlock(doc, text, x, yPos, width, lineH, opts = {}){
+        const { bold = false, size } = opts;
+        if (size) doc.setFontSize(size);
+        doc.setFont('helvetica', bold ? 'bold' : 'normal');
+
+        // Découpage du texte à la largeur utile
+        const lines = doc.splitTextToSize(String(text), width);
+        // Gestion du saut de page si nécessaire
+        const needed = lines.length * lineH;
+        if (yPos + needed > pageHeight - margin){
+          doc.addPage();
+          yPos = margin;
+        }
+        doc.text(lines, x, yPos, { baseline: 'top' });
+        return yPos + needed;
+      }
+    });
+  </script>
+</body>
+</html>
 
 
